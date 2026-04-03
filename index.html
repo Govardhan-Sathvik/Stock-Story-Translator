@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Story Translator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@0.331.0/dist/umd/lucide.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+        body { font-family: 'IBM Plex Sans', sans-serif; background-color: #0b0f19; color: #e8eaed; }
+        .chart-container { position: relative; height: 300px; width: 100%; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+        
+        // Helper to render Lucide icons in React
+        const Icon = ({ name, className, size = 24, fill = "none" }) => {
+            const iconRef = useRef(null);
+            useEffect(() => {
+                if (iconRef.current && window.lucide) {
+                    iconRef.current.innerHTML = "";
+                    const icon = window.lucide.createIcons({
+                        icons: { [name]: window.lucide.icons[name] },
+                        attrs: { 
+                            class: className,
+                            width: size,
+                            height: size,
+                            fill: fill
+                        }
+                    });
+                }
+            }, [name, className, size, fill]);
+            return <span ref={iconRef} className="inline-block" />;
+        };
+
+        function cn(...inputs) {
+            return inputs.filter(Boolean).join(' ');
+        }
+
+        function App() {
+            const [ticker, setTicker] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [story, setStory] = useState(null);
+            const [error, setError] = useState(null);
+            const [favorites, setFavorites] = useState(() => {
+                const saved = localStorage.getItem('stock_favorites');
+                return saved ? JSON.parse(saved) : [];
+            });
+            const [timeframe, setTimeframe] = useState('1M');
+            const chartRef = useRef(null);
+            const chartInstance = useRef(null);
+
+            useEffect(() => {
+                localStorage.setItem('stock_favorites', JSON.stringify(favorites));
+            }, [favorites]);
+
+            const toggleFavorite = (symbol) => {
+                setFavorites(prev => 
+                    prev.includes(symbol) 
+                        ? prev.filter(s => s !== symbol) 
+                        : [...prev, symbol]
+                );
+            };
+
+            const generateMockStory = (symbol) => {
+                const s = symbol.toUpperCase();
+                const isUp = Math.random() > 0.4;
+                const price = (Math.random() * 500 + 50).toFixed(2);
+                const change = (Math.random() * 5 * (isUp ? 1 : -1)).toFixed(2);
+                
+                return {
+                    ticker: s,
+                    companyName: s === 'AAPL' ? 'Apple Inc.' : s === 'TSLA' ? 'Tesla, Inc.' : s === 'RELIANCE.NS' ? 'Reliance Industries' : `${s} Corporation`,
+                    price: `$${price}`,
+                    change: `${change}%`,
+                    sentiment: isUp ? 'bullish' : 'bearish',
+                    tldr: `${s} is currently seeing ${isUp ? 'strong momentum' : 'some headwinds'} as market conditions shift.`,
+                    mainStory: `Imagine ${s} as a massive engine in the global economy. Right now, it's ${isUp ? 'firing on all cylinders' : 'undergoing a scheduled maintenance'}. Recent consumer trends suggest that their latest products are gaining traction, while their service division continues to provide a steady stream of income. It's like a popular neighborhood store that just expanded its delivery service—more people are using it, and they're spending more per visit.`,
+                    keyDevelopments: [
+                        "New product lineup receiving positive early reviews from tech enthusiasts.",
+                        "Expansion into emerging markets is showing faster-than-expected growth.",
+                        "Strategic partnership announced with a major AI infrastructure provider."
+                    ],
+                    whatItMeans: "For the average person, this means the company is successfully pivoting to future-proof its business. They aren't just selling hardware anymore; they are building an ecosystem that keeps users coming back. If you own a piece of this company, you're essentially betting on the continued integration of tech into daily life.",
+                    watchNext: "Keep an eye on the upcoming regulatory filings and the next big developer conference in June.",
+                    metrics: {
+                        marketCap: "$2.85T",
+                        peRatio: "28.4",
+                        dividendYield: "0.65%",
+                        volume: "52.4M"
+                    },
+                    earnings: {
+                        quarterly: "Revenue: $117.2B (up 5% YoY)",
+                        annual: "Net Income: $97B",
+                        status: isUp ? "Beat" : "Inline",
+                        simplified: "They made more money than most people expected, mostly because they managed to keep their costs low while selling more high-end gadgets. It's like a baker selling out of their most expensive cakes while spending less on flour."
+                    },
+                    chartData: {
+                        "1D": { labels: ['9AM', '10AM', '11AM', '12PM', '1PM', '2PM', '3PM', '4PM'], data: Array.from({length: 8}, () => price * (1 + (Math.random() - 0.5) * 0.02)) },
+                        "1W": { labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], data: Array.from({length: 5}, () => price * (1 + (Math.random() - 0.5) * 0.05)) },
+                        "1M": { labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'], data: Array.from({length: 4}, () => price * (1 + (Math.random() - 0.5) * 0.08)) },
+                        "3M": { labels: ['Jan', 'Feb', 'Mar'], data: Array.from({length: 3}, () => price * (1 + (Math.random() - 0.5) * 0.12)) },
+                        "1Y": { labels: ['Q1', 'Q2', 'Q3', 'Q4'], data: Array.from({length: 4}, () => price * (1 + (Math.random() - 0.5) * 0.20)) }
+                    }
+                };
+            };
+
+            const analyzeStock = async (searchTicker = ticker) => {
+                if (!searchTicker.trim()) return;
+                setLoading(true);
+                setError(null);
+                setStory(null);
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    const mockData = generateMockStory(searchTicker);
+                    setStory(mockData);
+                    setTicker(searchTicker.toUpperCase());
+                } catch (err) {
+                    setError('Unable to fetch stock story. Please try again.');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            useEffect(() => {
+                if (story && chartRef.current) {
+                    if (chartInstance.current) {
+                        chartInstance.current.destroy();
+                    }
+                    const ctx = chartRef.current.getContext('2d');
+                    const currentData = story.chartData[timeframe];
+                    
+                    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+                    gradient.addColorStop(0, story.sentiment === 'bullish' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)');
+                    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+                    chartInstance.current = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: currentData.labels,
+                            datasets: [{
+                                label: 'Price',
+                                data: currentData.data,
+                                borderColor: story.sentiment === 'bullish' ? '#10b981' : '#f43f5e',
+                                backgroundColor: gradient,
+                                fill: true,
+                                tension: 0.4,
+                                pointRadius: 4,
+                                pointHoverRadius: 6,
+                                pointBackgroundColor: story.sentiment === 'bullish' ? '#10b981' : '#f43f5e',
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { color: '#9ca3af' } },
+                                y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#9ca3af' } },
+                            }
+                        }
+                    });
+                }
+            }, [story, timeframe]);
+
+            return (
+                <div className="min-h-screen p-4 md:p-8">
+                    <div className="max-w-6xl mx-auto space-y-8">
+                        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div className="space-y-1">
+                                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent flex items-center gap-2">
+                                    <Icon name="sparkles" size={32} className="text-blue-400" />
+                                    Stock Story Translator
+                                </h1>
+                                <p className="text-gray-400 text-sm">Complex market data, simplified for you.</p>
+                            </div>
+
+                            <form onSubmit={(e) => { e.preventDefault(); analyzeStock(); }} className="relative flex-1 max-w-md group">
+                                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                                    <Icon name="search" size={20} className="text-gray-500 group-focus-within:text-blue-400 transition-colors" />
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Enter ticker (e.g. AAPL, RELIANCE.NS)"
+                                    className="w-full bg-[#161b2c] border border-gray-800 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all text-lg"
+                                    value={ticker}
+                                    onChange={(e) => setTicker(e.target.value)}
+                                />
+                                <button
+                                    disabled={loading}
+                                    className="absolute right-2 top-2 bottom-2 bg-blue-600 hover:bg-blue-500 text-white px-6 rounded-xl font-semibold transition-all flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    {loading ? <Icon name="loader-2" size={20} className="animate-spin" /> : 'Translate'}
+                                </button>
+                            </form>
+                        </header>
+
+                        {favorites.length > 0 && (
+                            <div className="flex flex-wrap gap-3 items-center">
+                                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                                    <Icon name="heart" size={16} className="text-rose-500" fill="currentColor" /> Watchlist:
+                                </span>
+                                {favorites.map(fav => (
+                                    <button
+                                        key={fav}
+                                        onClick={() => analyzeStock(fav)}
+                                        className="px-4 py-1.5 rounded-full bg-[#161b2c] border border-gray-800 hover:border-blue-500 text-sm font-medium transition-all"
+                                    >
+                                        {fav}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {error && (
+                            <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-2xl flex items-center gap-3 text-rose-400">
+                                <Icon name="alert-circle" size={20} />
+                                {error}
+                            </div>
+                        )}
+
+                        {story && (
+                            <main className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                <div className="lg:col-span-2 space-y-8">
+                                    <div className="bg-[#161b2c] p-6 rounded-3xl border border-gray-800 flex flex-wrap items-center justify-between gap-6 shadow-xl">
+                                        <div className="flex items-center gap-4">
+                                            <div className={cn(
+                                                "p-4 rounded-2xl",
+                                                story.sentiment === 'bullish' ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
+                                            )}>
+                                                {story.sentiment === 'bullish' ? <Icon name="trending-up" size={32} /> : <Icon name="trending-down" size={32} />}
+                                            </div>
+                                            <div>
+                                                <h2 className="text-2xl font-bold">{story.companyName}</h2>
+                                                <p className="text-gray-400 font-mono uppercase tracking-widest">{story.ticker}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-3xl font-bold font-mono">{story.price}</div>
+                                            <div className={cn(
+                                                "font-bold flex items-center justify-end gap-1",
+                                                story.sentiment === 'bullish' ? "text-emerald-400" : "text-rose-400"
+                                            )}>
+                                                {story.sentiment === 'bullish' ? '+' : ''}{story.change}
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => toggleFavorite(story.ticker)}
+                                            className={cn(
+                                                "p-3 rounded-xl border transition-all",
+                                                favorites.includes(story.ticker) 
+                                                    ? "bg-rose-500/10 border-rose-500 text-rose-500" 
+                                                    : "border-gray-800 text-gray-400 hover:border-rose-500/50"
+                                            )}
+                                        >
+                                            <Icon name="heart" size={24} fill={favorites.includes(story.ticker) ? "currentColor" : "none"} />
+                                        </button>
+                                    </div>
+
+                                    <div className="bg-[#161b2c] p-6 rounded-3xl border border-gray-800 shadow-xl space-y-6">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="font-bold flex items-center gap-2">
+                                                <Icon name="bar-chart-3" size={20} className="text-blue-400" />
+                                                Price Performance
+                                            </h3>
+                                            <div className="flex bg-[#0b0f19] p-1 rounded-xl">
+                                                {['1D', '1W', '1M', '3M', '1Y'].map(tf => (
+                                                    <button
+                                                        key={tf}
+                                                        onClick={() => setTimeframe(tf)}
+                                                        className={cn(
+                                                            "px-3 py-1 rounded-lg text-xs font-bold transition-all",
+                                                            timeframe === tf ? "bg-blue-600 text-white shadow-lg" : "text-gray-500 hover:text-gray-300"
+                                                        )}
+                                                    >
+                                                        {tf}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="chart-container">
+                                            <canvas ref={chartRef}></canvas>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        {[
+                                            { label: 'Market Cap', value: story.metrics.marketCap, icon: 'dollar-sign', color: 'text-blue-400' },
+                                            { label: 'P/E Ratio', value: story.metrics.peRatio, icon: 'activity', color: 'text-emerald-400' },
+                                            { label: 'Div Yield', value: story.metrics.dividendYield, icon: 'pie-chart', color: 'text-amber-400' },
+                                            { label: 'Volume', value: story.metrics.volume, icon: 'bar-chart-3', color: 'text-purple-400' }
+                                        ].map((item, i) => (
+                                            <div key={i} className="bg-[#161b2c] p-4 rounded-2xl border border-gray-800 hover:border-gray-700 transition-all shadow-lg group">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <Icon name={item.icon} size={16} className={item.color} />
+                                                    <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">{item.label}</span>
+                                                </div>
+                                                <div className="text-xl font-bold font-mono group-hover:text-white transition-colors">{item.value}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 p-6 rounded-3xl border border-blue-500/20 shadow-xl relative overflow-hidden group">
+                                        <h3 className="text-sm font-bold text-blue-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                                            <Icon name="info" size={16} /> The TL;DR
+                                        </h3>
+                                        <p className="text-lg font-semibold leading-relaxed text-blue-50">{story.tldr}</p>
+                                    </div>
+
+                                    <div className="bg-[#161b2c] p-6 rounded-3xl border border-gray-800 shadow-xl space-y-6">
+                                        <div>
+                                            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-[0.2em] mb-4">The Story</h3>
+                                            <p className="text-gray-300 leading-relaxed italic">{story.mainStory}</p>
+                                        </div>
+                                        <div className="space-y-4 pt-4 border-t border-gray-800">
+                                            <h4 className="font-bold flex items-center gap-2 text-emerald-400">
+                                                <Icon name="target" size={20} /> Key Developments
+                                            </h4>
+                                            <ul className="space-y-3">
+                                                {story.keyDevelopments.map((dev, i) => (
+                                                    <li key={i} className="flex gap-3 text-sm text-gray-400 leading-relaxed group">
+                                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 group-hover:scale-150 transition-all" />
+                                                        {dev}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-[#161b2c] p-6 rounded-3xl border border-gray-800 shadow-xl space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="font-bold flex items-center gap-2 text-amber-400">
+                                                <Icon name="dollar-sign" size={20} /> Earnings Pulse
+                                            </h3>
+                                            <span className={cn(
+                                                "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                                                story.earnings.status === 'Beat' ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400"
+                                            )}>
+                                                {story.earnings.status}
+                                            </span>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <div className="p-3 bg-[#0b0f19] rounded-xl border border-gray-800/50">
+                                                <p className="text-xs text-gray-500 mb-1">Quarterly Recap</p>
+                                                <p className="text-sm font-medium">{story.earnings.quarterly}</p>
+                                            </div>
+                                            <div className="p-4 bg-amber-500/5 rounded-xl border border-amber-500/10">
+                                                <p className="text-xs font-bold text-amber-400 uppercase mb-2">Simplified View</p>
+                                                <p className="text-sm text-gray-300 leading-relaxed italic">"{story.earnings.simplified}"</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </main>
+                        )}
+
+                        {!story && !loading && (
+                            <div className="py-20 flex flex-col items-center justify-center text-center space-y-6">
+                                <div className="w-24 h-24 bg-[#161b2c] rounded-full flex items-center justify-center text-gray-700 animate-pulse">
+                                    <Icon name="activity" size={48} />
+                                </div>
+                                <div className="space-y-2">
+                                    <h2 className="text-xl font-bold text-gray-400">Ready to translate?</h2>
+                                    <p className="text-gray-600 max-w-sm">Enter a stock ticker above to get the full story behind the numbers.</p>
+                                </div>
+                                <div className="flex gap-4">
+                                    {['AAPL', 'TSLA', 'RELIANCE.NS', 'NVDA'].map(s => (
+                                        <button
+                                            key={s}
+                                            onClick={() => analyzeStock(s)}
+                                            className="px-4 py-2 rounded-xl bg-[#161b2c] border border-gray-800 text-xs font-bold text-gray-500 hover:border-blue-500/50 hover:text-blue-400 transition-all"
+                                        >
+                                            {s}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <footer className="pt-12 pb-8 text-center text-gray-600 text-xs border-t border-gray-900 mt-12">
+                            <p>© 2026 Stock Story Translator Pro • Powered by AI & Real-time Market Data</p>
+                            <p className="mt-2 italic">Disclaimer: Not financial advice. Always do your own research.</p>
+                        </footer>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
